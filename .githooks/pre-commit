@@ -1,0 +1,145 @@
+#!/bin/sh
+#
+# Blocks a commit that would put a secret into the repository.
+#
+# This exists because .gitignore is not a control: it stops a file being added
+# by accident, but it does nothing about a key pasted into a source file, a
+# test fixture, a README or a deployment note. Those are how keys actually
+# reach public repositories.
+#
+# Enabled for this clone with:
+#     git config core.hooksPath .githooks
+#
+# To bypass it for a commit you are certain about:
+#     git commit --no-verify
+#
+# Two design decisions, both learned the hard way on this repository:
+#
+#  - **One pass over the staged diff, not per file.** The first version ran
+#    three `git show` calls per staged file. On the initial commit of 245 files
+#    that was 735 process spawns and it had not finished after five minutes on
+#    Windows. This reads the diff once and scans only added lines.
+#
+#  - **Placeholders are not secrets.** A hook that cries wolf is worse than no
+#    hook, because the habit it teaches is `--no-verify`. CHANGE_ME, <password>,
+#    $appPassword and test-only constants are all ignored. The cost is that a
+#    real secret literally named "example" would pass; that is an acceptable
+#    trade against the certainty that a noisy hook gets disabled within a week.
+
+set -eu
+
+# Only added lines matter: an existing secret is already in history and
+# blocking every later commit would not remove it.
+diff_file=$(mktemp)
+trap 'rm -f "$diff_file"' EXIT
+git diff --cached -U0 --diff-filter=ACMR > "$diff_file" 2>/dev/null || true
+[ -s "$diff_file" ] || exit 0
+
+# --- Provider key shapes ----------------------------------------------------
+#
+# Anchored on each provider's documented prefix rather than on entropy, which
+# would flag every npm integrity hash and base64 blob in a lockfile.
+KEY_PATTERN='(gsk_[A-Za-z0-9]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16})'
+
+# A real value written where a secret variable is assigned.
+ASSIGN_PATTERN='(JWT_SECRET|AI_SERVICE_TOKEN|FB_AI_SERVICE_TOKEN|GROQ_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY)[[:space:]]*[:=][[:space:]]*[^[:alnum:][:space:]]?[A-Za-z0-9_+/=-]{16,}'
+
+# A connection URL carrying a real password rather than a placeholder.
+DBURL_PATTERN='postgres(ql)?://[A-Za-z0-9_.-]+:[^@[:space:]]{6,}@'
+
+# --- What counts as visibly not-a-secret ------------------------------------
+#
+#   CHANGE_ME / REPLACE_ME / YOUR_x   documented fill-in markers
+#   <password> / {{var}}              template slots
+#   $var / ${var} / %VAR%             shell, PowerShell and batch variables
+#   example / placeholder / dummy     sample values
+#   test-only                         test fixtures
+#   :PASSWORD@                        the literal word in a sample URL
+PLACEHOLDER='(CHANGE_?ME|REPLACE_?ME|YOUR[_-]|<[A-Za-z0-9_ .-]+>|[{][{][^}]*[}][}]|[$][{]?[A-Za-z_][A-Za-z0-9_]*[}]?|%[A-Za-z_][A-Za-z0-9_]*%|[Ee][Xx][Aa][Mm][Pp][Ll][Ee]|[Pp]laceholder|PLACEHOLDER|[Dd]ummy|[Tt]est[_-]only|TEST_ONLY|[Xx][Xx][Xx][Xx]|:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]@)'
+
+# Files whose contents are hashes or generated output end to end.
+SKIP_FILES='(package-lock[.]json|requirements[.]lock[.]txt|[.]min[.]js|[.]map|[.]lock)$'
+# An example file exists to show the shape of a value. Real provider keys are
+# still reported in one; assignments and URLs are not.
+EXAMPLE_FILES='([.]example|[.]example[.].*|[.]sample|[.]template)$'
+
+fail=0
+report() {
+    if [ "$fail" -eq 0 ]; then
+        printf '\n\033[31mCommit blocked: a staged change looks like it contains a secret.\033[0m\n\n'
+    fi
+    fail=1
+    printf '  %s\n' "$1"
+}
+
+# One awk pass: tracks the current file from the diff headers and tests each
+# added line. Findings are deduplicated per file and reason.
+findings=$(
+    awk -v keypat="$KEY_PATTERN" \
+        -v assignpat="$ASSIGN_PATTERN" \
+        -v dburlpat="$DBURL_PATTERN" \
+        -v placeholder="$PLACEHOLDER" \
+        -v skipfiles="$SKIP_FILES" \
+        -v examplefiles="$EXAMPLE_FILES" '
+    /^\+\+\+ b\// {
+        file = substr($0, 7)
+        skip    = (file ~ skipfiles)
+        example = (file ~ examplefiles)
+        next
+    }
+    /^\+\+\+/ { next }
+    /^\+/ {
+        if (skip || file == "") next
+        line = substr($0, 2)
+        if (line ~ placeholder) next
+
+        if (line ~ keypat && !seen[file "|k"]++)
+            print file "\tcontains something shaped like a live provider API key"
+        if (!example) {
+            if (line ~ assignpat && !seen[file "|a"]++)
+                print file "\tassigns a real-looking value to a secret variable"
+            if (line ~ dburlpat && !seen[file "|d"]++)
+                print file "\tcontains a database URL with an embedded password"
+        }
+    }
+    ' "$diff_file"
+)
+
+if [ -n "$findings" ]; then
+    printf '%s\n' "$findings" | while IFS="$(printf '\t')" read -r f reason; do
+        printf '%s %s\n' "$f" "$reason"
+    done > /dev/null
+    OLDIFS=$IFS
+    IFS='
+'
+    for row in $findings; do
+        report "$(printf '%s' "$row" | tr '\t' ' ')"
+    done
+    IFS=$OLDIFS
+fi
+
+# --- A real .env file being committed at all --------------------------------
+#
+# .gitignore already excludes these, but `git add -f` overrides it and that is
+# exactly the mistake worth catching.
+for file in $(git diff --cached --name-only --diff-filter=ACMR); do
+    base=${file##*/}
+    case "$base" in
+        .env|.env.*)
+            case "$base" in
+                *.example|*.sample|*.template) ;;
+                *) report "$file is a real .env file and must never be committed" ;;
+            esac
+            ;;
+    esac
+done
+
+if [ "$fail" -ne 0 ]; then
+    printf '\nNothing has been committed. Move the value into an untracked .env\n'
+    printf 'file and reference it by variable name, then commit again.\n'
+    printf 'If this is genuinely a placeholder the hook misread:\n'
+    printf '  git commit --no-verify\n\n'
+    exit 1
+fi
+
+exit 0

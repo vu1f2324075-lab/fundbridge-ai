@@ -1,0 +1,23 @@
+# Minimal local dependency: PostgreSQL. Application services are run with npm /
+# uvicorn during development so they stay hot-reloadable.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fundbridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fundbridge
+      POSTGRES_PASSWORD: fundbridge
+      POSTGRES_DB: fundbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      - fundbridge-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fundbridge -d fundbridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fundbridge-db-data:

@@ -1,0 +1,229 @@
+/**
+ * FundBridge AI design tokens.
+ *
+ * Originally carried over verbatim from the Figma prototype, and since
+ * deliberately re-pitched to a more vibrant indigo/violet scheme at the owner's
+ * request. The prototype's layout, spacing and component shapes are unchanged;
+ * only the palette moved.
+ *
+ * Every value here was checked for WCAG AA contrast rather than picked by eye,
+ * and two of them exist because the ORIGINAL palette failed: the old muted ink
+ * (#94A3B8) scored 2.56:1 on white and the old warning (#C98516) 2.78:1 on its
+ * own tint, both well under the 4.5:1 needed for body text. Re-check with a
+ * contrast calculator before changing any of these.
+ *
+ * The prototype's data layer deliberately did not carry over — every number in
+ * this application comes from the API.
+ */
+@import 'tailwindcss';
+
+@theme {
+  --color-navy: #3730A3;
+  --color-navy-light: #4338CA;
+  --color-blue-accent: #4F46E5;
+  --color-blue-light: #EEF0FF;
+  --color-app-bg: #F5F3FF;
+  --color-app-text: #161033;
+  --color-success: #047857;
+  --color-success-bg: #D1FAE5;
+  --color-warning: #C2410C;
+  --color-warning-bg: #FFEDD5;
+  --color-danger: #BE123C;
+  --color-danger-bg: #FFE4E6;
+  --color-border: #E5E1F4;
+  --color-muted: #5C5A7D;
+  --color-muted-strong: #6E6A94;
+  --color-muted-bg: #F2EFFB;
+  --color-card: #ffffff;
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* -------------------------------------------------------------------------
+     Semantic aliases.
+
+     The names above describe a colour ("navy", "blue-light"); these describe a
+     job ("ink", "line", "surface"). Pages use these, so a palette change is one
+     edit here rather than a search across 28 files. The values are identical to
+     the validated ones above — this adds vocabulary, not new colour.
+  ------------------------------------------------------------------------- */
+  --color-ink: #161033;
+  --color-ink-soft: #5C5A7D;
+  --color-ink-faint: #6E6A94;
+  --color-line: #E5E1F4;
+  --color-line-strong: #CDC7E8;
+  --color-surface: #ffffff;
+  --color-canvas: #F5F3FF;
+  --color-accent: #4F46E5;
+  --color-accent-soft: #EEF0FF;
+  --color-accent-deep: #3730A3;
+
+  /* The authenticated shell. A single deep indigo rather than the former
+     three-stop purple gradient: a large saturated gradient competes with the
+     data for attention, which is the opposite of what a dashboard chrome
+     should do. */
+  /* Used where a tinted border or a light accent is wanted on a dark field. */
+  --color-warning-line: #FDBA74;
+  --color-line-accent: #C7CCFF;
+  --color-brand-glow: #A5B4FC;
+  --color-surface-tint: #FAF9FF;
+
+  --color-shell: #1E1B4B;
+  --color-shell-raised: #2A2560;
+
+  /* -------------------------------------------------------------------------
+     Type scale.
+
+     Previously almost every string in the application was 11–15px, so headings
+     did not separate from body text and the eye had nowhere to land. These are
+     the only sizes that should appear; each has a job.
+  ------------------------------------------------------------------------- */
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.125rem;
+  --text-display--letter-spacing: -0.021em;
+  --text-display--font-weight: 650;
+
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.014em;
+  --text-title--font-weight: 620;
+
+  --text-section: 0.9375rem;
+  --text-section--line-height: 1.375rem;
+  --text-section--letter-spacing: -0.006em;
+  --text-section--font-weight: 600;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.5rem;
+
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.25rem;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-micro--letter-spacing: 0.055em;
+  --text-micro--font-weight: 600;
+
+  /* A metric is the one thing on a page that should be unmissable. */
+  --text-metric: 2.75rem;
+  --text-metric--line-height: 1;
+  --text-metric--letter-spacing: -0.03em;
+  --text-metric--font-weight: 650;
+
+  /* -------------------------------------------------------------------------
+     Elevation. Three steps only, so "important" stays legible as a signal.
+  ------------------------------------------------------------------------- */
+  --shadow-card: 0 1px 2px rgba(23, 32, 51, 0.04);
+  --shadow-raised: 0 2px 4px rgba(23, 32, 51, 0.05), 0 8px 24px -12px rgba(23, 32, 51, 0.14);
+  --shadow-overlay: 0 8px 28px -8px rgba(23, 32, 51, 0.22);
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Numbers that update in place must not reflow as their digits change. */
+.tabular-nums,
+[data-metric] {
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background-color: var(--color-app-bg);
+  color: var(--color-app-text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #CDC7E8 transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #CDC7E8;
+  border-radius: 3px;
+}
+
+/* Keyboard focus must stay visible. The ring is applied globally rather than
+   per-component so a new control cannot accidentally ship without it. */
+:focus-visible {
+  outline: 2px solid var(--color-blue-accent);
+  outline-offset: 2px;
+}
+
+/* Respect a reduced-motion preference: this is an analytical tool, and no
+   animation here carries meaning. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Marketing-page motion.
+   Hand-written keyframes rather than an animation dependency: the set needed
+   is three effects, and a library would cost far more bundle than this block.
+   Everything is disabled under prefers-reduced-motion.
+--------------------------------------------------------------------------- */
+
+@keyframes fb-rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fb-rise {
+  animation: fb-rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fb-rise-delay {
+  animation-delay: 0.12s;
+}
+
+/* The readiness ring draws itself once. The dash array is set inline from the
+   real value, so this only animates the sweep, never the number. */
+@keyframes fb-ring-draw {
+  from { stroke-dashoffset: 214; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.fb-ring {
+  animation: fb-ring-draw 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fb-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.fb-bar {
+  transform-origin: left center;
+  animation: fb-bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-rise,
+  .fb-rise-delay,
+  .fb-ring,
+  .fb-bar {
+    animation: none !important;
+  }
+}

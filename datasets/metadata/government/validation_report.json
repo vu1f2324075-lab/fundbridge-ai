@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "government-schemes-v0.1.0",
+  "generatedAt": "2026-10-16",
+  "totalRecords": 2,
+  "validRecords": 2,
+  "invalidRecords": 0,
+  "errors": 0,
+  "warnings": 0,
+  "byVerificationStatus": {
+    "DRAFT": 0,
+    "NEEDS_VERIFICATION": 0,
+    "VERIFIED": 2,
+    "PUBLISHED": 0,
+    "NEEDS_REVERIFICATION": 0,
+    "ARCHIVED": 0
+  },
+  "completeness": {
+    "missingApplicationUrl": 0,
+    "missingFundingRange": 1,
+    "missingEligibility": 0,
+    "missingDocuments": 2,
+    "missingApplicationProcess": 0
+  },
+  "duplicateCandidates": 0,
+  "issues": []
+}

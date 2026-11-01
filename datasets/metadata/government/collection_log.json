@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "government-schemes-v0.1.0",
+  "importedAt": "2026-11-01T14:41:14.330Z",
+  "dryRun": false,
+  "recordsRead": 2,
+  "inserted": 0,
+  "updated": 2,
+  "skipped": 0,
+  "published": 2,
+  "issues": []
+}

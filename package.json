@@ -1,0 +1,39 @@
+{
+  "name": "fundbridgeai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FundBridge AI — explainable funding decision-support and investor/business matching for startups and MSMEs.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
+    "test": "npm run test --workspace backend",
+    "db:generate": "npm run db:generate --workspace backend",
+    "db:migrate": "npm run db:migrate --workspace backend",
+    "db:push": "npm run db:push --workspace backend",
+    "db:seed": "npm run db:seed --workspace backend",
+    "db:studio": "npm run db:studio --workspace backend",
+    "schemes:import": "npm run schemes:import --workspace backend",
+    "schemes:validate": "npm run schemes:validate --workspace backend",
+    "db:setup": "powershell -ExecutionPolicy Bypass -NoProfile -File scripts/setup/02-create-dev-cluster.ps1",
+    "db:start": "powershell -ExecutionPolicy Bypass -NoProfile -File scripts/setup/pg.ps1 -Action start",
+    "db:stop": "powershell -ExecutionPolicy Bypass -NoProfile -File scripts/setup/pg.ps1 -Action stop",
+    "db:status": "powershell -ExecutionPolicy Bypass -NoProfile -File scripts/setup/pg.ps1 -Action status",
+    "db:restart": "powershell -ExecutionPolicy Bypass -NoProfile -File scripts/setup/pg.ps1 -Action restart",
+    "db:seed:demo": "npm run db:seed:demo --workspace backend",
+    "data:validate": "tsx scripts/validate-data/index.ts",
+    "data:import": "tsx scripts/import-government-schemes/index.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

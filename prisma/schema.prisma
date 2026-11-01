@@ -1,0 +1,827 @@
+// FundBridge AI - data model.
+//
+// Three data layers live in this schema and are kept distinguishable:
+//   1. Operational data - written by application users (User, BusinessProfile, ...)
+//   2. Reference data   - curated from official sources (GovernmentScheme)
+//   3. Derived data     - produced by the scoring engines (FundingReadiness,
+//                         InvestorMatch, SchemeMatch, ProposalAnalysis)
+//
+// Every derived row carries `modelVersion` and `configVersion` so a stored result
+// can be traced back to the logic and weights that produced it. Every reference
+// row carries provenance (source, officialSourceUrl, lastVerifiedAt, status).
+
+generator client {
+  provider = "prisma-client-js"
+  // Written outside src/ so the same relative path ("../../generated/prisma")
+  // resolves from both src/<dir>/ during development and dist/<dir>/ after a
+  // build - tsc does not copy non-TS assets into dist.
+  output   = "../backend/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Used only by `prisma migrate dev` to diff migrations in isolation.
+  // Optional: unset in CI/production, where `migrate deploy` is used instead.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ===========================================================================
+// Enums
+// ===========================================================================
+
+enum Role {
+  STARTUP
+  INVESTOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum BusinessStage {
+  IDEA
+  PROTOTYPE
+  EARLY
+  GROWTH
+  EXPANSION
+  MATURE
+}
+
+enum BusinessType {
+  PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  FPO
+  SOCIETY
+  TRUST
+  SELF_HELP_GROUP
+  OTHER
+}
+
+enum ProductStatus {
+  CONCEPT
+  IN_DEVELOPMENT
+  PILOT
+  LAUNCHED
+  SCALING
+}
+
+enum FundingType {
+  EQUITY
+  DEBT
+  GRANT
+  SUBSIDY
+  LOAN
+  GUARANTEE
+  ANY_SUITABLE
+  OTHER
+}
+
+enum InvestorType {
+  ANGEL
+  VENTURE_CAPITAL
+  PRIVATE_EQUITY
+  FAMILY_OFFICE
+  CORPORATE
+  IMPACT
+  FUND
+  OTHER
+}
+
+enum SchemeType {
+  GRANT
+  LOAN
+  EQUITY
+  SUBSIDY
+  GUARANTEE
+  INCUBATION
+  OTHER
+}
+
+enum SchemeLevel {
+  CENTRAL
+  STATE
+}
+
+/// Lifecycle of a curated government-scheme record. Only PUBLISHED records are
+/// visible to business users; everything else is admin-only.
+enum SchemeStatus {
+  DRAFT
+  NEEDS_VERIFICATION
+  VERIFIED
+  PUBLISHED
+  NEEDS_REVERIFICATION
+  ARCHIVED
+}
+
+/// Deliberately has no GUARANTEED_* / APPROVED member. The system reports
+/// potential relevance, never an eligibility decision.
+enum MatchStatus {
+  POTENTIALLY_ELIGIBLE
+  NEEDS_INFORMATION
+  REVIEW_REQUIRED
+  LIKELY_NOT_ELIGIBLE
+}
+
+enum ProposalStatus {
+  UPLOADED
+  EXTRACTING
+  EXTRACTED
+  EXTRACTION_FAILED
+  ANALYSING
+  ANALYSED
+  ANALYSIS_FAILED
+}
+
+enum ActionPriority {
+  P1
+  P2
+  P3
+  P4
+  P5
+}
+
+enum ActionStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  DISMISSED
+}
+
+enum OpportunityType {
+  INVESTOR
+  SCHEME
+}
+
+enum ShortlistStatus {
+  WATCHING
+  CONTACTED
+  IN_REVIEW
+  PASSED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  NEEDS_REVIEW
+  INACTIVE
+}
+
+/// Marks where a row came from. Seed and synthetic rows must never be presented
+/// as verified live information, and must never be used as research evidence.
+enum DataSourceType {
+  USER
+  OFFICIAL_SOURCE
+  SEED
+  SYNTHETIC
+  IMPORT
+}
+
+enum NotificationType {
+  INFO
+  READINESS
+  MATCH
+  PROPOSAL
+  SCHEME
+  SYSTEM
+}
+
+// ===========================================================================
+// Identity
+// ===========================================================================
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  businessProfile BusinessProfile?
+  investorProfile InvestorProfile?
+  savedItems      SavedOpportunity[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@index([role])
+}
+
+// ===========================================================================
+// Operational data - business side
+// ===========================================================================
+
+model BusinessProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName  String
+  businessType  BusinessType?
+  industry      String?
+  subIndustry   String?
+  location      String?
+  state         String?
+  country       String?        @default("India")
+  foundedYear   Int?
+  businessStage BusinessStage?
+  teamSize      Int?
+
+  description    String?        @db.Text
+  problem        String?        @db.Text
+  solution       String?        @db.Text
+  targetCustomer String?        @db.Text
+  productStatus  ProductStatus?
+  customerCount  Int?
+
+  annualRevenue   Decimal? @db.Decimal(18, 2)
+  annualExpenses  Decimal? @db.Decimal(18, 2)
+  profitLoss      Decimal? @db.Decimal(18, 2)
+  existingFunding Decimal? @db.Decimal(18, 2)
+  existingDebt    Decimal? @db.Decimal(18, 2)
+  growthRate      Float?
+  marketSize      Decimal? @db.Decimal(18, 2)
+
+  founderExperience    Int?
+  teamStrength         String?  @db.Text
+  customers            String[] @default([])
+  partnerships         String[] @default([])
+  certifications       String[] @default([])
+  intellectualProperty String[] @default([])
+
+  /// Registration facts that government schemes commonly gate on.
+  udyamRegistered    Boolean?
+  dpiitRecognised    Boolean?
+  gstRegistered      Boolean?
+  registrationNumber String?
+
+  /// Whether the owner allows investors to discover this business.
+  discoverable Boolean        @default(true)
+  sourceType   DataSourceType @default(USER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fundingRequirement FundingRequirement?
+  readiness          FundingReadiness?
+  proposals          Proposal[]
+  investorMatches    InvestorMatch[]
+  schemeMatches      SchemeMatch[]
+  actionPlan         ActionPlanItem[]
+  shortlistedBy      Shortlist[]
+
+  @@index([industry])
+  @@index([businessStage])
+  @@index([state])
+  @@index([discoverable])
+}
+
+model FundingRequirement {
+  id         String          @id @default(cuid())
+  businessId String          @unique
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  amountRequired         Decimal     @db.Decimal(18, 2)
+  currency               String      @default("INR")
+  purpose                String      @db.Text
+  fundingType            FundingType
+  preferredTimeline      String?
+  preferredLocation      String?
+  additionalRequirements String?     @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===========================================================================
+// Operational data - investor side
+// ===========================================================================
+
+model InvestorProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  investorName String
+  investorType InvestorType
+  description  String?      @db.Text
+
+  minInvestment Decimal? @db.Decimal(18, 2)
+  maxInvestment Decimal? @db.Decimal(18, 2)
+
+  industries            String[]        @default([])
+  preferredStages       BusinessStage[] @default([])
+  preferredLocations    String[]        @default([])
+  fundingTypes          FundingType[]   @default([])
+  investmentPreferences String?         @db.Text
+  website               String?
+
+  verification   VerificationStatus @default(UNVERIFIED)
+  source         String?
+  sourceType     DataSourceType     @default(USER)
+  lastVerifiedAt DateTime?
+  /// Investors can opt out of appearing in business-side matching.
+  active         Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches    InvestorMatch[]
+  shortlists Shortlist[]
+
+  @@index([investorType])
+  @@index([active])
+}
+
+// ===========================================================================
+// Reference data - government schemes
+// ===========================================================================
+
+model GovernmentScheme {
+  id         String      @id @default(cuid())
+  /// Stable human-readable key so the importer can upsert without duplicating.
+  slug       String      @unique
+  name       String
+  provider   String
+  ministry   String?
+  department String?
+  level      SchemeLevel
+  schemeType SchemeType
+
+  targetBusinessTypes   BusinessType[]  @default([])
+  supportedIndustries   String[]        @default([])
+  supportedStages       BusinessStage[] @default([])
+  supportedLocations    String[]        @default([])
+  supportedFundingTypes FundingType[]   @default([])
+  supportedPurposes     String[]        @default([])
+
+  minFunding         Decimal? @db.Decimal(18, 2)
+  maxFunding         Decimal? @db.Decimal(18, 2)
+  fundingDescription String?  @db.Text
+
+  description String? @db.Text
+  /// Machine-checkable gates, e.g. { "dpiitRecognised": true, "maxAgeYears": 10 }.
+  eligibilityRules Json?
+  /// Human-readable criteria, worded as the official source words them.
+  eligibilityCriteria String[] @default([])
+  requiredDocuments   String[] @default([])
+  applicationProcess  String?  @db.Text
+
+  applicationUrl    String?
+  officialSourceUrl String
+
+  status         SchemeStatus   @default(DRAFT)
+  source         String
+  sourceType     DataSourceType @default(OFFICIAL_SOURCE)
+  lastVerifiedAt DateTime?
+  verifiedById   String?
+  notes          String?        @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches   SchemeMatch[]
+  revisions SchemeRevision[]
+  documents SchemeDocument[]
+
+  @@index([status])
+  @@index([level])
+  @@index([schemeType])
+  @@index([lastVerifiedAt])
+}
+
+/// Append-only history. Provenance is never overwritten in place - each admin
+/// edit snapshots the previous values here first.
+model SchemeRevision {
+  id        String           @id @default(cuid())
+  schemeId  String
+  scheme    GovernmentScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  snapshot  Json
+  changedBy String?
+  reason    String?
+  createdAt DateTime         @default(now())
+
+  @@index([schemeId, createdAt])
+}
+
+// ===========================================================================
+// Proposals
+// ===========================================================================
+
+model Proposal {
+  id         String          @id @default(cuid())
+  businessId String
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  fileName     String
+  originalName String
+  fileType     String
+  storageKey   String
+  fileSize     Int
+  checksum     String?
+
+  status        ProposalStatus @default(UPLOADED)
+  statusMessage String?
+  extractedText String?        @db.Text
+  /// Detected document sections, e.g. { "problem": "...", "market": "..." }.
+  sections      Json?
+  wordCount     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  analyses ProposalAnalysis[]
+
+  @@index([businessId, createdAt])
+}
+
+model ProposalAnalysis {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  overallScore              Int
+  clarityScore              Int
+  completenessScore         Int
+  structureScore            Int
+  marketEvidenceScore       Int
+  financialScore            Int
+  fundingJustificationScore Int
+  teamScore                 Int
+
+  identifiedStrengths  String[] @default([])
+  identifiedWeaknesses String[] @default([])
+  missingSections      String[] @default([])
+  /// [{ area, issue, suggestion, whyItMatters, severity }]
+  improvementSuggestions Json   @default("[]")
+
+  /// True when an LLM phrased the narrative parts. Scores stay deterministic -
+  /// see docs/AI_PIPELINE.md.
+  llmAssisted   Boolean @default(false)
+  modelVersion  String
+  configVersion String?
+
+  createdAt DateTime @default(now())
+
+  @@index([proposalId, createdAt])
+}
+
+// ===========================================================================
+// Derived data - readiness and matches
+// ===========================================================================
+
+model FundingReadiness {
+  id         String          @id @default(cuid())
+  businessId String          @unique
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  overallScore Int
+  category     String
+
+  businessProfileScore  Int
+  financialScore        Int
+  marketValidationScore Int
+  teamScore             Int
+  proposalScore         Int
+
+  /// [{ name, score, maxScore, weight, reason, missing[] }] - the authoritative
+  /// breakdown that both the UI and the explanation layer read from.
+  components         Json     @default("[]")
+  missingInformation String[] @default([])
+  recommendations    String[] @default([])
+
+  modelVersion  String
+  configVersion String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InvestorMatch {
+  id         String          @id @default(cuid())
+  businessId String
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  industryScore    Float
+  fundingScore     Float
+  stageScore       Float
+  locationScore    Float
+  fundingTypeScore Float
+  semanticScore    Float?
+
+  overallScore Int
+
+  matchedFactors String[] @default([])
+  missingFactors String[] @default([])
+  /// Serialised Explanation object: { overallScore, factors[], missingFactors[] }.
+  explanation    Json
+  /// LLM-verbalised prose derived strictly from `explanation`. Null when the LLM
+  /// is unavailable; the UI then renders the structured factors directly.
+  narrative      String?  @db.Text
+
+  modelVersion  String
+  configVersion String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, investorId])
+  @@index([businessId, overallScore])
+  @@index([investorId, overallScore])
+}
+
+model SchemeMatch {
+  id         String           @id @default(cuid())
+  businessId String
+  business   BusinessProfile  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  schemeId   String
+  scheme     GovernmentScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  eligibilityScore Int
+
+  businessTypeScore Float
+  industryScore     Float
+  stageScore        Float
+  locationScore     Float
+  fundingScore      Float
+  purposeScore      Float
+  semanticScore     Float?
+
+  matchedCriteria String[]    @default([])
+  missingCriteria String[]    @default([])
+  blockingIssues  String[]    @default([])
+  status          MatchStatus
+
+  explanation Json
+  narrative   String? @db.Text
+
+  modelVersion  String
+  configVersion String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, schemeId])
+  @@index([businessId, eligibilityScore])
+}
+
+// ===========================================================================
+// User-facing collections
+// ===========================================================================
+
+model SavedOpportunity {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  opportunityType OpportunityType
+  opportunityId   String
+  notes           String?         @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, opportunityType, opportunityId])
+  @@index([userId])
+}
+
+model Shortlist {
+  id         String          @id @default(cuid())
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  businessId String
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  notes  String?         @db.Text
+  status ShortlistStatus @default(WATCHING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([investorId, businessId])
+  @@index([investorId])
+}
+
+model ActionPlanItem {
+  id         String          @id @default(cuid())
+  businessId String
+  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?        @db.Text
+  reason      String?        @db.Text
+  priority    ActionPriority
+  status      ActionStatus   @default(TODO)
+  /// Which engine produced this item: READINESS | PROPOSAL | SCHEME_MATCH |
+  /// INVESTOR_MATCH | MANUAL. Lets regeneration replace generated items only.
+  sourceModule String
+  /// Stable key so regeneration updates an item instead of duplicating it.
+  sourceKey    String?
+  dueDate      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, sourceKey])
+  @@index([businessId, priority])
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title   String
+  message String           @db.Text
+  type    NotificationType @default(INFO)
+  link    String?
+  read    Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+// ===========================================================================
+// Administration
+// ===========================================================================
+
+/// Scoring weights and thresholds. Seeded from code defaults, editable by
+/// admins, stamped onto every derived row via `configVersion` so a stored score
+/// can be reproduced. Never hardcoded in the frontend.
+model MatchingConfig {
+  id        String   @id @default(cuid())
+  key       String
+  version   Int      @default(1)
+  active    Boolean  @default(true)
+  value     Json
+  notes     String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, version])
+  @@index([key, active])
+}
+
+model AuditLog {
+  id       String  @id @default(cuid())
+  actorId  String?
+  actor    User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action   String
+  entity   String
+  entityId String?
+  metadata Json?
+  ip       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// ===========================================================================
+// Retrieval layer (RAG)
+// ===========================================================================
+//
+// Only verified official government material is indexed here. Retrieval is
+// restricted to chunks whose parent document is PUBLISHED, so an unverified
+// draft can never be presented as authoritative government information
+// (docs/security/rag-security.md).
+//
+// Embeddings are stored as `Float[]` (double precision[]) and searched by
+// exact cosine similarity behind the `VectorStore` interface. pgvector is not
+// available for PostgreSQL 18 on Windows; at this corpus size exact search is
+// both fast and strictly more accurate than an approximate HNSW index. To move
+// to pgvector later, change this column to `Unsupported("vector(384)")`, add
+// the HNSW index, and swap the store implementation — no other code changes.
+
+/// What kind of official artefact a retrieval document was built from.
+enum RagSourceType {
+  OFFICIAL_SCHEME_PAGE
+  OFFICIAL_PDF
+  OFFICIAL_GUIDELINE
+  /// Derived from the curated GovernmentScheme row itself rather than a file.
+  SCHEME_RECORD
+}
+
+enum RagDocumentStatus {
+  DRAFT
+  NEEDS_VERIFICATION
+  PUBLISHED
+  ARCHIVED
+}
+
+/// An official document associated with a scheme, kept with full provenance so
+/// every generated sentence can be traced back to a government source.
+model SchemeDocument {
+  id       String            @id @default(cuid())
+  schemeId String?
+  scheme   GovernmentScheme? @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  title      String
+  sourceType RagSourceType
+  /// The official URL this content was collected from. Required — nothing is
+  /// indexed without an attributable source.
+  sourceUrl  String
+  /// Publisher as named by the source, e.g. "Ministry of MSME".
+  publisher  String?
+  checksum   String?
+  language   String?           @default("en")
+  status     RagDocumentStatus @default(DRAFT)
+
+  collectedAt    DateTime  @default(now())
+  lastVerifiedAt DateTime?
+  verifiedById   String?
+
+  /// Full cleaned text, retained so chunking can be re-run with new parameters
+  /// without re-fetching the source.
+  content   String? @db.Text
+  wordCount Int?
+
+  /// Embedding model + chunking parameters that produced the current chunks.
+  /// Chunks are only comparable to a query embedded by the same model.
+  embeddingModel String?
+  chunkSize      Int?
+  chunkOverlap   Int?
+  indexedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chunks SchemeDocumentChunk[]
+
+  @@index([schemeId])
+  @@index([status])
+  @@index([sourceType])
+}
+
+model SchemeDocumentChunk {
+  id         String         @id @default(cuid())
+  documentId String
+  document   SchemeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  /// Position within the parent document, used for stable citations.
+  chunkIndex Int
+  text       String @db.Text
+  tokenCount Int?
+  /// Nearest preceding heading, shown with the citation in the UI.
+  heading    String?
+
+  /// 384-dimension embedding (sentence-transformers/all-MiniLM-L6-v2).
+  /// Null until the indexer has run; null chunks are skipped by retrieval.
+  embedding      Float[] @default([])
+  embeddingModel String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+}
+
+// ===========================================================================
+// Research reproducibility
+// ===========================================================================
+
+/// One row per executed experiment run. Metrics are written here by the
+/// experiment scripts and never typed in by hand; a module with no row has
+/// genuinely not been evaluated yet (docs/research/experiments.md).
+model ExperimentRun {
+  id   String @id @default(cuid())
+  /// e.g. "scheme-matching", "readiness", "nlp-similarity", "explainability".
+  name String
+  /// Short slug describing the arm, e.g. "baseline-keyword", "hybrid-semantic".
+  variant String
+
+  datasetVersion String
+  modelVersion   String
+  configVersion  String?
+  embeddingModel String?
+  randomSeed     Int?
+
+  /// Feature list, hyperparameters and split sizes exactly as executed.
+  features       String[] @default([])
+  hyperparams    Json?
+  trainTestSplit Json?
+
+  /// Computed metrics, e.g. { "precision@5": 0.0, "ndcg@10": 0.0 }. Empty when
+  /// a run produced no valid metrics — never backfilled with plausible numbers.
+  metrics Json @default("{}")
+  /// How relevance labels were obtained: EXPERT_ANNOTATION | RULE_DERIVED |
+  /// USER_STUDY | NONE. Ranking metrics require real labels.
+  labelSource String?
+  notes       String? @db.Text
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([name, startedAt])
+}

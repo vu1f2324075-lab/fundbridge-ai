@@ -1,0 +1,81 @@
+{
+  "schemeId": "GOV-0001",
+  "slug": "startup-india-seed-fund-scheme",
+  "collectionMethod": "BROWSER_RENDERED_OFFICIAL_PAGE",
+  "collectedBy": "assistant",
+  "collectionDate": "2026-10-09",
+  "note": "The official site is a JavaScript single-page application. A plain HTTP fetch returns only the shell, so the page was rendered in a browser and the visible text extracted. Every field below is quoted or closely paraphrased from the rendered official page. Fields absent from these pages are recorded as null with an explicit reason rather than inferred.",
+  "sources": [
+    {
+      "sourceId": "SRC-0001",
+      "url": "https://seedfund.startupindia.gov.in/",
+      "title": "Startup India Seed Fund Scheme",
+      "domain": "seedfund.startupindia.gov.in",
+      "sourceType": "OFFICIAL_WEBPAGE",
+      "accessedAt": "2026-10-09",
+      "fieldsCollected": [
+        "officialSchemeName",
+        "nodalDepartment",
+        "fundingPurpose",
+        "sectorAgnostic",
+        "applicationWindowNotice"
+      ]
+    },
+    {
+      "sourceId": "SRC-0002",
+      "url": "https://seedfund.startupindia.gov.in/about",
+      "title": "About Startup India Seed Fund Scheme",
+      "domain": "seedfund.startupindia.gov.in",
+      "sourceType": "OFFICIAL_WEBPAGE",
+      "accessedAt": "2026-10-09",
+      "fieldsCollected": [
+        "totalOutlay",
+        "notificationDate",
+        "eligibilityCriteria",
+        "ineligibilityCriteria",
+        "fundingInstruments"
+      ]
+    },
+    {
+      "sourceId": "SRC-0003",
+      "url": "https://seedfundapi.startupindia.gov.in:3535/filestorage/samplefiles/Guidelines_for_Startup_India_Seed_Fund_Scheme.pdf",
+      "title": "Guidelines for Startup India Seed Fund Scheme (English)",
+      "domain": "seedfundapi.startupindia.gov.in",
+      "sourceType": "OFFICIAL_GUIDELINE",
+      "accessedAt": null,
+      "status": "IDENTIFIED_NOT_YET_COLLECTED",
+      "note": "Linked from the official site and expected to contain the per-startup funding ceilings, which are NOT stated on either page collected above. Deliberately left uncollected rather than guessed. Collecting this PDF is the next step for this record.",
+      "fieldsCollected": []
+    }
+  ],
+  "verbatimExtracts": {
+    "objective": "Startup India Seed Fund Scheme (SISFS) aims to provide financial assistance to startups for proof of concept, prototype development, product trials, market entry and commercialization.",
+    "outlay": "SISFS with an outlay of INR 945 Crore to provide financial assistance to startups for Proof of Concept, prototype development, product trials, market entry, and commercialization. It will support an estimated 3,600 entrepreneurs through 300 incubators in the next 4 years.",
+    "notification": "After approval of EFC and Hon'ble Finance Minister, the scheme has been notified on 21.01.2021.",
+    "nodalDepartment": "DPIIT - Department for Promotion of Industry and Internal Trade - Nodal Department",
+    "disbursement": "The Seed Fund will be disbursed to eligible startups through eligible incubators across India.",
+    "eligibilityStartups": [
+      "A startup, recognized by DPIIT, incorporated not more than 2 years ago at the time of application.",
+      "The startup must have a business idea to develop a product or a service with a market fit, viable commercialization, and scope of scaling.",
+      "The startup should be using technology in its core product or service, or business model, or distribution model, or methodology to solve the problem being targeted.",
+      "Preference would be given to startups creating innovative solutions in sectors such as social impact, waste management, water management, financial inclusion, education, agriculture, food processing, biotechnology, healthcare, energy, mobility, defence, space, railways, oil and gas, textiles, etc.",
+      "Startup should not have received more than Rs 10 lakh of monetary support under any other Central or State Government scheme. This does not include prize money from competitions and grand challenges, subsidized working space, founder monthly allowance, access to labs, or access to prototyping facility.",
+      "Shareholding by Indian promoters in the startup should be at least 51% at the time of application to the incubator for the scheme, as per Companies Act, 2013 and SEBI (ICDR) Regulations, 2018.",
+      "A startup applicant can avail seed support in the form of grant and debt/convertible debentures each once as per the guidelines of the scheme."
+    ],
+    "features": [
+      "Year-round 'Call for Applications' for Incubators and Startups",
+      "Sector-agnostic",
+      "No mandatory physical incubation",
+      "PAN-India startup programme",
+      "Startups can apply to 3 incubators simultaneously"
+    ],
+    "applicationNotice": "Final Notice (Extended): Last date for startups to apply under SISFS - 31 May 2026 | Incubators to complete 100% startup selection by - 30 June 2026."
+  },
+  "fieldsNotStatedOnCollectedSources": {
+    "minFunding": "Per-startup minimum not stated on the pages collected. Expected in the guidelines PDF (SRC-0003).",
+    "maxFunding": "Per-startup maximum not stated on the pages collected. Expected in the guidelines PDF (SRC-0003). NOT inferred.",
+    "requiredDocuments": "Not enumerated on the pages collected.",
+    "supportedLocations": "Described only as 'PAN-India startup programme'; no state restriction stated."
+  }
+}
