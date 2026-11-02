@@ -1,14 +1,15 @@
 {
   "version": "0.0.1",
+  "_comment": "Frontend only. The combined `npm run dev` cannot be used here: the preview tooling injects PORT, and one value cannot serve both the API and Vite - they collide on the same port. Run the API separately; it reads PORT from backend/.env (4000).",
   "configurations": [
     {
-      "name": "dev",
+      "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
-        "dev"
+        "dev:frontend"
       ],
-      "port": 3000
+      "port": 5173
     }
   ]
 }
