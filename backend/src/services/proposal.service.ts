@@ -17,7 +17,8 @@ import { NotFoundError, PreconditionFailedError, ValidationError } from '../lib/
 import { serialize, decimalToNumber } from '../lib/serialize';
 import { logger } from '../lib/logger';
 import * as ai from './aiService.client';
-import { deleteFile, readFile, validateUpload, writeFile } from '../lib/upload';
+import { validateUpload } from '../lib/upload';
+import { deleteFile, readFile, writeFile } from '../lib/storage';
 import { invalidateDerivedAnalysis } from './business.service';
 import { recalculateReadiness } from './readiness.service';
 import type { Prisma } from '../../generated/prisma';

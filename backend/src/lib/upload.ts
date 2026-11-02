@@ -17,7 +17,6 @@
  *    by URL guessing.
  */
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import multer from 'multer';
 import { env } from '../config/env';
@@ -167,55 +166,6 @@ export function validateUpload(file: Express.Multer.File): ValidatedUpload {
     // Lets a duplicate upload be recognised, and detects storage corruption.
     checksum: crypto.createHash('sha256').update(file.buffer).digest('hex'),
   };
-}
-
-/** Absolute storage root, created on demand. */
-function storageRoot(): string {
-  return path.resolve(process.cwd(), env.STORAGE_LOCAL_DIR);
-}
-
-/**
- * Resolves a storage key to an absolute path, refusing anything that escapes
- * the storage root.
- *
- * Keys are generated internally so traversal should be impossible — this is the
- * backstop that makes it impossible even if a key ever came from elsewhere.
- */
-export function resolveStoragePath(storageKey: string): string {
-  if (!/^[a-f0-9]{64}\.(pdf|docx)$/.test(storageKey)) {
-    throw new ValidationError('Invalid file reference.');
-  }
-
-  const root = storageRoot();
-  const resolved = path.resolve(root, storageKey);
-
-  // Normalised comparison: `path.resolve` has already collapsed any `..`.
-  if (resolved !== path.join(root, storageKey)) {
-    logger.error({ storageKey }, 'storage path escaped the storage root');
-    throw new ValidationError('Invalid file reference.');
-  }
-  return resolved;
-}
-
-export async function writeFile(storageKey: string, buffer: Buffer): Promise<void> {
-  const target = resolveStoragePath(storageKey);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  // 0o600: readable only by the process owner. The file is never served from
-  // disk by a static handler.
-  await fs.writeFile(target, buffer, { mode: 0o600, flag: 'wx' });
-}
-
-export async function readFile(storageKey: string): Promise<Buffer> {
-  return fs.readFile(resolveStoragePath(storageKey));
-}
-
-export async function deleteFile(storageKey: string): Promise<void> {
-  try {
-    await fs.unlink(resolveStoragePath(storageKey));
-  } catch (err) {
-    // Already gone is success for a delete.
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-  }
 }
 
 /**

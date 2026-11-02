@@ -43,9 +43,31 @@ const schema = z
     /** Comma-separated allowlist. Never `*` — credentials are sent with cookies. */
     CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
-    STORAGE_DRIVER: z.enum(['local']).default('local'),
+    STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     STORAGE_LOCAL_DIR: z.string().default('./storage/proposals'),
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+
+    /**
+     * Acknowledges that the local driver loses files in production.
+     *
+     * A container filesystem is replaced on every deploy, so `local` in
+     * production means uploaded proposals vanish while their database rows
+     * survive. Set this only when a persistent disk is genuinely mounted at
+     * STORAGE_LOCAL_DIR.
+     */
+    STORAGE_ALLOW_EPHEMERAL: booleanish.default(false),
+
+    // S3-compatible object storage, required when STORAGE_DRIVER=s3. Optional
+    // here and checked in the refinement below, so the error names the driver
+    // rather than listing four unrelated missing variables.
+    S3_BUCKET: z.string().trim().min(1).optional(),
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+    S3_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
+    /** R2 ignores the region, but the SDK requires one. */
+    S3_REGION: z.string().trim().min(1).default('auto'),
+    /** Needed by MinIO and other self-hosted stores; R2 does not want it. */
+    S3_FORCE_PATH_STYLE: booleanish.default(false),
 
     /** Blank disables AI calls; deterministic scoring still works (spec §40). */
     AI_SERVICE_URL: z.string().url().optional().or(z.literal('')),
@@ -86,7 +108,32 @@ const schema = z
       });
     }
 
+    if (val.STORAGE_DRIVER === 's3') {
+      // Named individually so the operator sees exactly which one is absent.
+      for (const key of ['S3_BUCKET', 'S3_ENDPOINT', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
+        if (!val[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required when STORAGE_DRIVER=s3`,
+          });
+        }
+      }
+    }
+
     if (val.NODE_ENV === 'production') {
+      // Refused by default rather than warned about: the local driver in
+      // production loses every uploaded proposal at the next deploy, and the
+      // symptom (rows pointing at missing files) appears long after the cause.
+      if (val.STORAGE_DRIVER === 'local' && !val.STORAGE_ALLOW_EPHEMERAL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['STORAGE_DRIVER'],
+          message:
+            'STORAGE_DRIVER=local in production loses uploaded files on every deploy. Use s3, or set STORAGE_ALLOW_EPHEMERAL=true if a persistent disk is mounted at STORAGE_LOCAL_DIR.',
+        });
+      }
+
       if (PLACEHOLDER_SECRETS.has(val.JWT_SECRET.toLowerCase())) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

@@ -9,7 +9,7 @@ import { asyncHandler, noContent, ok } from '../lib/http';
 import { ForbiddenError, ValidationError } from '../lib/errors';
 import * as proposalService from '../services/proposal.service';
 import * as ragService from '../services/rag.service';
-import { readFile } from '../lib/upload';
+import { readFile } from '../lib/storage';
 import { recordAudit } from '../services/audit.service';
 
 function businessId(req: Request): string {
