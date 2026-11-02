@@ -52,7 +52,9 @@ const schema = z
     AI_SERVICE_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
     AI_SERVICE_TOKEN: z.string().optional(),
 
-    TRUST_PROXY: booleanish.default('false'),
+    // zod 4's `.default()` takes the output type, so this is `false` and not
+    // the string 'false' that the enum accepts on the input side.
+    TRUST_PROXY: booleanish.default(false),
   })
   .superRefine((val, ctx) => {
     if (val.NODE_ENV === 'production') {

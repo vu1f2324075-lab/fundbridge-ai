@@ -48,7 +48,7 @@ export const registerSchema = z
     // ADMIN is absent by design: administrators are provisioned by the seed
     // script or promoted by an existing admin, never self-assigned at signup.
     role: z.enum(['STARTUP', 'INVESTOR'], {
-      errorMap: () => ({ message: 'Choose whether you are a business or an investor' }),
+      error: () => 'Choose whether you are a business or an investor',
     }),
     /** Required for STARTUP so the business profile row can be created atomically. */
     businessName: z.string().trim().min(2).max(200).optional(),
