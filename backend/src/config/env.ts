@@ -55,8 +55,37 @@ const schema = z
     // zod 4's `.default()` takes the output type, so this is `false` and not
     // the string 'false' that the enum accepts on the input side.
     TRUST_PROXY: booleanish.default(false),
+
+    /**
+     * SameSite for the session and CSRF cookies.
+     *
+     * `lax` suits a single-origin deployment and local development. `none` is
+     * required when the frontend is served from a different site than the API
+     * — which includes two `*.onrender.com` subdomains, since `onrender.com`
+     * is a public suffix. See config/cookies.ts for the full reasoning.
+     */
+    COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+
+    /**
+     * Cookie domain. Leave unset for a host-only cookie, which is correct
+     * unless the API and frontend are genuine subdomains of one registrable
+     * domain (api.example.com and app.example.com) and should share a session.
+     */
+    COOKIE_DOMAIN: z.string().trim().min(1).optional(),
   })
   .superRefine((val, ctx) => {
+    // A SameSite=None cookie without Secure is rejected outright by every
+    // current browser, so allowing this combination would produce a server
+    // that starts cleanly and cannot hold a session.
+    if (val.COOKIE_SAMESITE === 'none' && val.NODE_ENV !== 'production') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['COOKIE_SAMESITE'],
+        message:
+          "COOKIE_SAMESITE=none requires Secure cookies, which are only set when NODE_ENV=production. Use 'lax' locally.",
+      });
+    }
+
     if (val.NODE_ENV === 'production') {
       if (PLACEHOLDER_SECRETS.has(val.JWT_SECRET.toLowerCase())) {
         ctx.addIssue({
@@ -99,6 +128,13 @@ const raw = parsed.data;
 export const env = {
   ...raw,
   isProduction: raw.NODE_ENV === 'production',
+  /**
+   * Whether cookies carry `Secure`.
+   *
+   * True in production, and also forced true by SameSite=None, which browsers
+   * refuse without it.
+   */
+  cookieSecure: raw.NODE_ENV === 'production' || raw.COOKIE_SAMESITE === 'none',
   isTest: raw.NODE_ENV === 'test',
   isDevelopment: raw.NODE_ENV === 'development',
   /** Parsed CORS allowlist. */

@@ -18,7 +18,7 @@ import type { RequestHandler } from 'express';
 import type { Response } from 'express';
 import { CsrfError } from '../lib/errors';
 import { generateCsrfToken, safeCompare } from '../lib/tokens';
-import { env } from '../config/env';
+import { csrfCookieOptions, clearCookieOptions } from '../config/cookies';
 
 export const CSRF_COOKIE = 'fb_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
@@ -28,18 +28,12 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 /** Readable by design — the frontend must be able to echo it back. */
 export function issueCsrfCookie(res: Response): string {
   const token = generateCsrfToken();
-  res.cookie(CSRF_COOKIE, token, {
-    httpOnly: false,
-    secure: env.isProduction,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie(CSRF_COOKIE, token, csrfCookieOptions);
   return token;
 }
 
 export function clearCsrfCookie(res: Response): void {
-  res.clearCookie(CSRF_COOKIE, { path: '/' });
+  res.clearCookie(CSRF_COOKIE, clearCookieOptions);
 }
 
 /**

@@ -5,7 +5,7 @@
  * a response body — a token the page can read is a token XSS can steal.
  */
 import type { Request, Response } from 'express';
-import { env } from '../config/env';
+import { sessionCookieOptions, clearCookieOptions } from '../config/cookies';
 import { asyncHandler, ok, noContent } from '../lib/http';
 import { signSessionToken } from '../lib/tokens';
 import { SESSION_COOKIE } from '../middleware/authenticate';
@@ -15,20 +15,8 @@ import * as authService from '../services/auth.service';
 import { recordAudit } from '../services/audit.service';
 import type { Role } from '../../generated/prisma';
 
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
 function setSessionCookie(res: Response, userId: string, role: Role): void {
-  res.cookie(SESSION_COOKIE, signSessionToken({ sub: userId, role }), {
-    httpOnly: true,
-    // Over HTTPS only in production; relaxed locally so dev works over http.
-    secure: env.isProduction,
-    // 'lax' still sends the cookie on top-level navigation, which 'strict'
-    // would block, while refusing it on cross-site subrequests. CSRF is
-    // handled by the double-submit token, not by this flag alone.
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_MAX_AGE_MS,
-  });
+  res.cookie(SESSION_COOKIE, signSessionToken({ sub: userId, role }), sessionCookieOptions);
 }
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -83,7 +71,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id;
 
-  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  res.clearCookie(SESSION_COOKIE, clearCookieOptions);
   clearCsrfCookie(res);
 
   if (userId) {
